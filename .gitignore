@@ -34,3 +34,4 @@
 /data
 /archive
 /work
+*.pyc
