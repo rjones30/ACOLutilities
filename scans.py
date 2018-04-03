@@ -44,7 +44,6 @@ calparamS = {82: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
              87: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
              86: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2}}
 
-"""
 # revised calibration performed on 3/31/2018
 pedestals = {82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
                   "oxp":  960, "oxm":  -34, "oyp": -720, "oym":  -950},
@@ -52,7 +51,6 @@ pedestals = {82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
                   "oxp":  -20, "oxm":  -35, "oyp": -520, "oym":  -705},
              86: {"ixp": -230, "ixm": -210, "iyp": -125, "iym": -1140,
                   "oxp":  -24, "oxm":  -35, "oyp":  350, "oym":  1007}}
-"""
 
 epicsvars = {"ixp": "IOCHDCOL_VMICADC1_1",
              "ixm": "IOCHDCOL_VMICADC2_1",
