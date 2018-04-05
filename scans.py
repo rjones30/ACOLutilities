@@ -24,12 +24,14 @@ dead = {82: [[-116.5, 3.5],[-116.5,6.5],[-116,4]],
 beamcur = {82: 66.7, 86: 100.6, 87: 101.3}
 
 # original calibration performed on 2/21/2018
+"""
 pedestals = {82: {"ixp":  550, "ixm":  600, "iyp":  700, "iym":   700,
                   "oxp": 1150, "oxm":  -31, "oyp": -700, "oym":  -950},
              87: {"ixp": 1450, "ixm":  550, "iyp":  300, "iym":  -600,
                   "oxp":  -20, "oxm":  -31, "oyp": -480, "oym":  -650},
              86: {"ixp": -220, "ixm": -170, "iyp":  -76, "iym": -1130,
                   "oxp":  -20, "oxm":  -31, "oyp":  375, "oym":   950}}
+"""
 
 calparamP = {82: {"ix": 1026, "iy": -311, "ox": 0, "oy": -76},
              87: {"ix": 1512, "iy":  732, "ox": 0, "oy": 470},
@@ -150,7 +152,7 @@ def prox(h2d, row1=0, row2=0, scan=0):
    mapx = h2d.ProjectionX("mapx", row1, row2)
    mapx.Scale(1.0 / (row2 - row1 + 1))
    for i in range(row1, row2 + 1):
-      mapx.SetBinError(i, 3)
+      mapx.SetBinError(i, 0.01 * mapx.GetBinContent(i))
    mapx.SetStats(0)
    mapx.SetDirectory(0)
    return suppress_dead(mapx)
@@ -168,7 +170,7 @@ def proy(h2d, row1=0, row2=0, scan=0):
    mapy = h2d.ProjectionY("mapy", row1, row2)
    mapy.Scale(1.0 / (row2 - row1 + 1))
    for i in range(row1, row2 + 1):
-      mapy.SetBinError(i, 3)
+      mapy.SetBinError(i, 0.01 * mapy.GetBinContent(i))
    mapy.SetStats(0)
    mapy.SetDirectory(0)
    return suppress_dead(mapy)
@@ -182,6 +184,7 @@ def calibrate_ix(scan, row1=0, row2=0):
    hmx = prox(hm, row1, row2, scan)
    fitp = hpx.Fit("pol2", "s")
    fitm = hmx.Fit("pol2", "s")
+   hpx.Draw("same")
    ap = [fitp.Parameter(i) for i in range(0,3)]
    am = [fitm.Parameter(i) for i in range(0,3)]
    pslope = 2 * ap[2] * xref[scan] + ap[1]
@@ -190,6 +193,8 @@ def calibrate_ix(scan, row1=0, row2=0):
    mcross = am[2] * xref[scan]**2 + am[1] * xref[scan] + am[0]
    pcross -= pedestals[scan]['ixp']
    mcross -= pedestals[scan]['ixm']
+   print "inner x+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "inner x- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['ix']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -215,6 +220,8 @@ def calibrate_iy(scan, row1=0, row2=0):
    mcross = am[2] * yref[scan]**2 + am[1] * yref[scan] + am[0]
    pcross -= pedestals[scan]['iyp']
    mcross -= pedestals[scan]['iym']
+   print "inner y+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "inner y- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['iy']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -240,6 +247,8 @@ def calibrate_ox(scan, row1=0, row2=0):
    mcross = am[2] * xref[scan]**2 + am[1] * xref[scan] + am[0]
    pcross -= pedestals[scan]['oxp']
    mcross -= pedestals[scan]['oxm']
+   print "outer x+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "outer x- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['ox']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -265,6 +274,8 @@ def calibrate_oy(scan, row1=0, row2=0):
    mcross = am[2] * yref[scan]**2 + am[1] * yref[scan] + am[0]
    pcross -= pedestals[scan]['oyp']
    mcross -= pedestals[scan]['oym']
+   print "outer y+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "outer y- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['oy']
    R = -pslope / mslope
    P = R * mcross - pcross
