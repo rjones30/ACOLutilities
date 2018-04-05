@@ -94,7 +94,7 @@ def close_mysql_connections():
       if c:
          c.close()
 
-def update_epics_record(var, nmax=1000, time=0):
+def update_epics_record(var, nmax=1000, stime=0):
    mya0 = mysql_connection(0)
    cursor = mya0.cursor()
    query = "SELECT chan_id, host FROM channels WHERE name = %s"
@@ -121,11 +121,12 @@ def update_epics_record(var, nmax=1000, time=0):
       print "is not in my archive server list, cannot continue!"
       sys.exit(1)
 
+   epicstime = stime * 65536**2
    mya1 = mysql_connection(nmya)
    cursor = mya1.cursor()
-   if time > 0:
+   if stime > 0:
       query = ("SELECT time, val1 FROM table_{0}".format(chan_id) +
-               " WHERE time < {0:f}".format(time * 65536 * 65536) +
+               " WHERE time < {0:f}".format(epicstime) +
                " ORDER BY time DESC LIMIT {0}".format(nmax))
    else:
       query = ("SELECT time, val1 FROM table_{0}".format(chan_id) +
@@ -134,26 +135,57 @@ def update_epics_record(var, nmax=1000, time=0):
    epicsrecord[var] = []
    for (t, v) in cursor:
       epicsrecord[var].append([t, v])
-   print var, "updated"
+   if len(epicsrecord[var]) == 0 or epicsrecord[var][0][0] < epicstime and stime < time.time() - 500:
+      query = ("SELECT time, val1 FROM table_{0}".format(chan_id) +
+               " WHERE time > {0:f}".format(epicstime) +
+               " ORDER BY time ASC LIMIT {0}".format(nmax / 2))
+      cursor.execute(query)
+      row = cursor.fetchall()
+      if len(row) > 0:
+         epicstime = row[-1][0]
+         query = ("SELECT time, val1 FROM table_{0}".format(chan_id) +
+                  " WHERE time < {0:f}".format(epicstime) +
+                  " ORDER BY time DESC LIMIT {0}".format(nmax))
+         cursor.execute(query)
+         epicsrecord[var] = []
+         for (t, v) in cursor:
+            epicsrecord[var].append([t, v])
+   print var, "updated from", 
+   print datetime.datetime.fromtimestamp(epicsrecord[var][-1][0]/65536**2).strftime('%m.%d.%Y %H:%M:%S'),
+   print "to",
+   print datetime.datetime.fromtimestamp(epicsrecord[var][0][0]/65536**2).strftime('%m.%d.%Y %H:%M:%S'),
+   print ",", len(epicsrecord[var]), "elements"
    cursor.close()
 
-def get_epics_record(var, time):
-   epicstime = time * 65536**2
-   try:
-      if epicsrecord[var][0][0] < epicstime:
-         print "fast-forward", var
-         update_epics_record(var, 10, time + 5)
-   except:
-      update_epics_record(var, 1000, time + 500)
-   for row in epicsrecord[var]:
-      if epicstime > row[0]:
-         return row
+def get_epics_record(var, stime):
+   epicstime = stime * 65536**2
+   precount = 500
+   while precount > 0:
+      try:
+         if epicsrecord[var][0][0] < epicstime:
+            print "fast-forward", var
+            update_epics_record(var, 1000, stime + 5)
+      except:
+         update_epics_record(var, 1000, stime + precount)
+      for row in epicsrecord[var]:
+         if epicstime > row[0]:
+            return row
+      if len(epicsrecord[var]) == 1000:
+         del epicsrecord[var]
+         precount /= 10
+      else:
+         break
+   #print "lookup of", var, "failed"
    return []
 
 epoch = time.time()
+date_time = 0
 while True:
-   pattern = '%d.%m.%Y %H:%M:%S'
-   date_time = raw_input("Enter a date and time [dd.mm.yyyy hh:mm:ss]: ")
+   if date_time > -2:
+      pattern = '%d.%m.%Y %H:%M:%S'
+      date_time = raw_input("Enter a date and time [dd.mm.yyyy hh:mm:ss]: ")
+   else:
+      date_time = "+2"
    if date_time:
       if date_time[0] == '+':
          epoch += float(date_time)
@@ -174,7 +206,7 @@ while True:
          ped = pedestals[g][var]
       print var, ":", record[var][1], "-", ped,
       print "=", record[var][1] - ped
-   repoch = record['ixp'][0] / 65536 / 65536
+   repoch = record['ixp'][0] / 65536**2
    timestring = datetime.datetime.fromtimestamp(repoch).strftime('%m.%d.%Y %H:%M:%S')
    print timestring,
    print "gain: {0:.0e}".format(g),
@@ -191,8 +223,8 @@ while True:
          Im_ped = pedestals[g][var + 'm']
       Ip = record[var + 'p'][1] - Ip_ped
       Im = record[var + 'm'][1] - Im_ped
-      x = S * (Ip - R * Im + P) / (Ip + R * Im + Q)
+      x = S * (Ip - R * Im + P) / (Ip + R * Im + Q + 1e-99)
       print var, ":", x, "   ",
-   print
+   print "xmo:", record['xmo'][1], "ymo:", record['ymo'][1]
 
 close_mysql_connections()
