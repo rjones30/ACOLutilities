@@ -8,6 +8,7 @@
 
 from ROOT import *
 import numpy
+import math
 
 # collimator scans taken 2/16/2018
 gains = {82: 1e9, 86: 1e11, 87: 1e10}
@@ -23,7 +24,7 @@ dead = {82: [[-116.5, 3.5],[-116.5,6.5],[-116,4]],
         87: [[-116.5, 3]]}
 beamcur = {82: 66.7, 86: 100.6, 87: 101.3}
 
-# original calibration performed on 2/21/2018
+# original P,Q,R,S calibration performed on 2/21/2018
 """
 pedestals = {82: {"ixp":  550, "ixm":  600, "iyp":  700, "iym":   700,
                   "oxp": 1150, "oxm":  -31, "oyp": -700, "oym":  -950},
@@ -46,7 +47,8 @@ calparamS = {82: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
              86: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2}}
 """
 
-# revised calibration performed on 3/31/2018
+# revised P,Q,R,S calibration performed on 3/31/2018
+
 pedestals = {82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
                   "oxp":  960, "oxm":  -34, "oyp": -720, "oym":  -950},
              87: {"ixp": 1380, "ixm":  503, "iyp":  168, "iym":  -665,
@@ -66,6 +68,36 @@ calparamR = {82: {"ix": 1.344, "iy": 0.894, "ox": 0, "oy": 1.460},
 calparamS = {82: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
              87: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
              86: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2}}
+
+# version 2.0 calibration: G,F,E parameterization (4/5/2018)
+
+pedestals = {82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
+                  "oxp":  960, "oxm":  -34, "oyp": -720, "oym":  -950},
+             87: {"ixp": 1380, "ixm":  503, "iyp":  168, "iym":  -665,
+                  "oxp":  -20, "oxm":  -35, "oyp": -520, "oym":  -705},
+             86: {"ixp": -230, "ixm": -210, "iyp": -125, "iym": -1140,
+                  "oxp":  -24, "oxm":  -35, "oyp":  350, "oym":  1007}}
+
+calparamG = {82: {"ixp": 1.0000, "ixm": 0.8552, "iyp": 1.0000, "iym": 1.0132,
+                  "oxp": 1.0000, "oxm": 1.0000, "oyp": 1.0000, "oym": 0.8029},
+             87: {"ixp": 1.0000, "ixm": 0.9001, "iyp": 1.0000, "iym": 0.9874,
+                  "oxp": 1.0000, "oxm": 1.0000, "oyp": 1.0000, "oym": 0.8642},
+             86: {"ixp": 1.0000, "ixm": 0.9605, "iyp": 1.0000, "iym": 1.0455,
+                  "oxp": 1.0000, "oxm": 1.0000, "oyp": 1.0000, "oym": 0.9213}}
+calparamF = {82: {"ixp": 0.1415, "ixm": -0.1053, "iyp": 0.1265, "iym": -0.1415,
+                  "oxp": 0.0000, "oxm": -0.0000, "oyp": 0.0719, "oym": -0.0493},
+             87: {"ixp": 0.1730, "ixm": -0.1200, "iyp": 0.1593, "iym": -0.1521,
+                  "oxp": 0.0000, "oxm": -0.0000, "oyp": 0.0907, "oym": -0.0639},
+             86: {"ixp": 0.1891, "ixm": -0.1588, "iyp": 0.1799, "iym": -0.1898,
+                  "oxp": 0.0000, "oxm": -0.0000, "oyp": 0.0850, "oym": -0.0809}}
+calparamE = {82: {"ixp": 0.01019, "ixm": 0.01340, "iyp": 0.01273, "iym": 0.01628,
+                  "oxp": 1.00000, "oxm": 1.00000, "oyp": 0.01051, "oym": 0.00794},
+             87: {"ixp": 0.01203, "ixm": 0.01457, "iyp": 0.02297, "iym": 0.02141,
+                  "oxp": 1.00000, "oxm": 1.00000, "oyp": 0.01235, "oym": 0.01054},
+             86: {"ixp": 0.02288, "ixm": 0.02176, "iyp": 0.02278, "iym": 0.02170,
+                  "oxp": 1.00000, "oxm": 1.00000, "oyp": 0.00910, "oym": 0.00998}}
+
+# constants, not changed by the calibration
 
 epicsvars = {"ixp": "IOCHDCOL_VMICADC1_1",
              "ixm": "IOCHDCOL_VMICADC2_1",
@@ -206,8 +238,6 @@ def calibrate_ix(scan, row1=0, row2=0):
    mcross = am[2] * xref[scan]**2 + am[1] * xref[scan] + am[0]
    pcross -= pedestals[scan]['ixp']
    mcross -= pedestals[scan]['ixm']
-   print "inner x+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
-   print "inner x- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['ix']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -215,6 +245,14 @@ def calibrate_ix(scan, row1=0, row2=0):
    calparamP[scan]['ix'] = P
    calparamQ[scan]['ix'] = Q
    calparamR[scan]['ix'] = R
+   print "inner x+ fit parameters:", pcross, pslope / pcross, ap[2] / pcross
+   print "inner x- fit parameters:", mcross, mslope / mcross, am[2] / mcross
+   calparamG[scan]['ixp'] = 1
+   calparamG[scan]['ixm'] = mcross / pcross
+   calparamF[scan]['ixp'] = pslope / pcross
+   calparamF[scan]['ixm'] = mslope / pcross
+   calparamE[scan]['ixp'] = ap[2] / pcross
+   calparamE[scan]['ixm'] = am[2] / pcross
 
 def calibrate_iy(scan, row1=0, row2=0):
    if scan == 0 and lastscan > 0:
@@ -225,6 +263,7 @@ def calibrate_iy(scan, row1=0, row2=0):
    hmy = proy(hm, row1, row2, scan)
    fitp = hpy.Fit("pol2", "s")
    fitm = hmy.Fit("pol2", "s")
+   hpy.Draw("same")
    ap = [fitp.Parameter(i) for i in range(0,3)]
    am = [fitm.Parameter(i) for i in range(0,3)]
    pslope = 2 * ap[2] * yref[scan] + ap[1]
@@ -233,8 +272,6 @@ def calibrate_iy(scan, row1=0, row2=0):
    mcross = am[2] * yref[scan]**2 + am[1] * yref[scan] + am[0]
    pcross -= pedestals[scan]['iyp']
    mcross -= pedestals[scan]['iym']
-   print "inner y+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
-   print "inner y- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['iy']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -242,6 +279,14 @@ def calibrate_iy(scan, row1=0, row2=0):
    calparamP[scan]['iy'] = P
    calparamQ[scan]['iy'] = Q
    calparamR[scan]['iy'] = R
+   print "inner y+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "inner y- fit parameters:", mcross, mslope/mcross, am[2]/mcross
+   calparamG[scan]['iyp'] = 1
+   calparamG[scan]['iym'] = mcross / pcross
+   calparamF[scan]['iyp'] = pslope / pcross
+   calparamF[scan]['iym'] = mslope / pcross
+   calparamE[scan]['iyp'] = ap[2] / pcross
+   calparamE[scan]['iym'] = am[2] / pcross
 
 def calibrate_ox(scan, row1=0, row2=0):
    if scan == 0 and lastscan > 0:
@@ -252,6 +297,7 @@ def calibrate_ox(scan, row1=0, row2=0):
    hmx = prox(hm, row1, row2, scan)
    fitp = hpx.Fit("pol2", "s")
    fitm = hmx.Fit("pol2", "s")
+   hpx.Draw("same")
    ap = [fitp.Parameter(i) for i in range(0,3)]
    am = [fitm.Parameter(i) for i in range(0,3)]
    pslope = 2 * ap[2] * xref[scan] + ap[1]
@@ -260,8 +306,6 @@ def calibrate_ox(scan, row1=0, row2=0):
    mcross = am[2] * xref[scan]**2 + am[1] * xref[scan] + am[0]
    pcross -= pedestals[scan]['oxp']
    mcross -= pedestals[scan]['oxm']
-   print "outer x+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
-   print "outer x- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['ox']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -269,6 +313,14 @@ def calibrate_ox(scan, row1=0, row2=0):
    calparamP[scan]['ox'] = P
    calparamQ[scan]['ox'] = Q
    calparamR[scan]['ox'] = R
+   print "outer x+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "outer x- fit parameters:", mcross, mslope/mcross, am[2]/mcross
+   calparamG[scan]['oxp'] = 1
+   calparamG[scan]['oxm'] = mcross / pcross
+   calparamF[scan]['oxp'] = pslope / pcross
+   calparamF[scan]['oxm'] = mslope / pcross
+   calparamE[scan]['oxp'] = ap[2] / pcross
+   calparamE[scan]['oxm'] = am[2] / pcross
 
 def calibrate_oy(scan, row1=0, row2=0):
    if scan == 0 and lastscan > 0:
@@ -279,6 +331,7 @@ def calibrate_oy(scan, row1=0, row2=0):
    hmy = proy(hm, row1, row2, scan)
    fitp = hpy.Fit("pol2", "s")
    fitm = hmy.Fit("pol2", "s")
+   hpy.Draw("same")
    ap = [fitp.Parameter(i) for i in range(0,3)]
    am = [fitm.Parameter(i) for i in range(0,3)]
    pslope = 2 * ap[2] * yref[scan] + ap[1]
@@ -287,8 +340,6 @@ def calibrate_oy(scan, row1=0, row2=0):
    mcross = am[2] * yref[scan]**2 + am[1] * yref[scan] + am[0]
    pcross -= pedestals[scan]['oyp']
    mcross -= pedestals[scan]['oym']
-   print "outer y+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
-   print "outer y- fit parameters:", mcross, mslope/mcross, am[2]/mcross
    S = calparamS[scan]['oy']
    R = -pslope / mslope
    P = R * mcross - pcross
@@ -296,6 +347,14 @@ def calibrate_oy(scan, row1=0, row2=0):
    calparamP[scan]['oy'] = P
    calparamQ[scan]['oy'] = Q
    calparamR[scan]['oy'] = R
+   print "outer y+ fit parameters:", pcross, pslope/pcross, ap[2]/pcross
+   print "outer y- fit parameters:", mcross, mslope/mcross, am[2]/mcross
+   calparamG[scan]['oyp'] = 1
+   calparamG[scan]['oym'] = mcross / pcross
+   calparamF[scan]['oyp'] = pslope / pcross
+   calparamF[scan]['oym'] = mslope / pcross
+   calparamE[scan]['oyp'] = ap[2] / pcross
+   calparamE[scan]['oym'] = am[2] / pcross
 
 def check_ix(scan, row1=0, row2=0):
    if scan == 0 and lastscan > 0:
@@ -318,6 +377,39 @@ def check_ix(scan, row1=0, row2=0):
       Im = hmx.GetBinContent(i)
       Im -= pedestals[scan]['ixm']
       xin = (Ip - R * Im + P) / (Ip + R * Im + Q) * S
+      hix.SetBinContent(i, xin)
+      hix.SetBinError(i, 0.05)
+   res = hix.Fit("pol1","s")
+   x = numpy.array([xref[scan], xref[scan]], dtype=float)
+   y = numpy.array([-5, 5], dtype=float)
+   global g
+   g = TGraph(2, x, y)
+   g.SetLineColor(kBlue)
+   g.Draw("l")
+   print "zero crossing is", -res.Parameter(0) / res.Parameter(1)
+   return hix
+
+def check2_ix(scan, row1=0, row2=0):
+   if scan == 0 and lastscan > 0:
+      scan = lastscan
+   hp = map2d('ixp', scan)
+   hpx = prox(hp, row1, row2, scan)
+   hm = map2d('ixm', scan)
+   hmx = prox(hm, row1, row2, scan)
+   hix = hpx.Clone("hix")
+   hix.SetTitle("inner x calibration check, scan {0}".format(scan))
+   for i in range(1, xsteps[0] + 1):
+      Ip = hpx.GetBinContent(i)
+      if Ip == 0:
+         continue
+      Ip -= pedestals[scan]['ixp']
+      Im = hmx.GetBinContent(i)
+      Im -= pedestals[scan]['ixm']
+      A = Ip * calparamE[scan]['ixm'] - Im * calparamE[scan]['ixp']
+      B = Ip * calparamF[scan]['ixm'] - Im * calparamF[scan]['ixp']
+      C = Ip * calparamG[scan]['ixm'] - Im * calparamG[scan]['ixp']
+      D = B**2 - 4 * A * C
+      xin = (-B - D**0.5) / (2 * A) 
       hix.SetBinContent(i, xin)
       hix.SetBinError(i, 0.05)
    res = hix.Fit("pol1","s")
@@ -363,6 +455,39 @@ def check_iy(scan, row1=0, row2=0):
    print "zero crossing is", -res.Parameter(0) / res.Parameter(1)
    return hiy
 
+def check2_iy(scan, row1=0, row2=0):
+   if scan == 0 and lastscan > 0:
+      scan = lastscan
+   hp = map2d('iyp', scan)
+   hpy = proy(hp, row1, row2, scan)
+   hm = map2d('iym', scan)
+   hmy = proy(hm, row1, row2, scan)
+   hiy = hpy.Clone("hiy")
+   hiy.SetTitle("inner y calibration check, scan {0}".format(scan))
+   for i in range(1, ysteps[0] + 1):
+      Ip = hpy.GetBinContent(i)
+      if Ip == 0:
+         continue
+      Ip -= pedestals[scan]['iyp']
+      Im = hmy.GetBinContent(i)
+      Im -= pedestals[scan]['iym']
+      A = Ip * calparamE[scan]['iym'] - Im * calparamE[scan]['iyp']
+      B = Ip * calparamF[scan]['iym'] - Im * calparamF[scan]['iyp']
+      C = Ip * calparamG[scan]['iym'] - Im * calparamG[scan]['iyp']
+      D = B**2 - 4 * A * C
+      yin = (-B - D**0.5) / (2 * A) 
+      hiy.SetBinContent(i, yin)
+      hiy.SetBinError(i, 0.05)
+   res = hiy.Fit("pol1","s")
+   x = numpy.array([yref[scan], yref[scan]], dtype=float)
+   y = numpy.array([-5, 5], dtype=float)
+   global g
+   g = TGraph(2, x, y)
+   g.SetLineColor(kBlue)
+   g.Draw("l")
+   print "zero crossing is", -res.Parameter(0) / res.Parameter(1)
+   return hiy
+
 def check_ox(scan, row1=0, row2=0):
    if scan == 0 and lastscan > 0:
       scan = lastscan
@@ -383,8 +508,41 @@ def check_ox(scan, row1=0, row2=0):
       Ip -= pedestals[scan]['oxp']
       Im = hmx.GetBinContent(i)
       Im -= pedestals[scan]['oxm']
-      xin = (Ip - R * Im + P) / (Ip + R * Im + Q) * S
-      hox.SetBinContent(i, xin)
+      xout = (Ip - R * Im + P) / (Ip + R * Im + Q) * S
+      hox.SetBinContent(i, xout)
+      hox.SetBinError(i, 0.05)
+   res = hox.Fit("pol1","s")
+   x = numpy.array([xref[scan], xref[scan]], dtype=float)
+   y = numpy.array([-5, 5], dtype=float)
+   global g
+   g = TGraph(2, x, y)
+   g.SetLineColor(kBlue)
+   g.Draw("l")
+   print "zero crossing is", -res.Parameter(0) / res.Parameter(1)
+   return hox
+
+def check2_ox(scan, row1=0, row2=0):
+   if scan == 0 and lastscan > 0:
+      scan = lastscan
+   hp = map2d('oxp', scan)
+   hpx = prox(hp, row1, row2, scan)
+   hm = map2d('oxm', scan)
+   hmx = prox(hm, row1, row2, scan)
+   hox = hpx.Clone("hox")
+   hox.SetTitle("inner x calibration check, scan {0}".format(scan))
+   for i in range(1, xsteps[0] + 1):
+      Ip = hpx.GetBinContent(i)
+      if Ip == 0:
+         continue
+      Ip -= pedestals[scan]['oxp']
+      Im = hmx.GetBinContent(i)
+      Im -= pedestals[scan]['oxm']
+      A = Ip * calparamE[scan]['oxm'] - Im * calparamE[scan]['oxp']
+      B = Ip * calparamF[scan]['oxm'] - Im * calparamF[scan]['oxp']
+      C = Ip * calparamG[scan]['oxm'] - Im * calparamG[scan]['oxp']
+      D = B**2 - 4 * A * C
+      xout = (-B - D**0.5) / (2 * A) 
+      hox.SetBinContent(i, xout)
       hox.SetBinError(i, 0.05)
    res = hox.Fit("pol1","s")
    x = numpy.array([xref[scan], xref[scan]], dtype=float)
@@ -416,8 +574,41 @@ def check_oy(scan, row1=0, row2=0):
       Ip -= pedestals[scan]['oyp']
       Im = hmy.GetBinContent(i)
       Im -= pedestals[scan]['oym']
-      yin = (Ip - R * Im + P) / (Ip + R * Im + Q) * S
-      hoy.SetBinContent(i, yin)
+      yout = (Ip - R * Im + P) / (Ip + R * Im + Q) * S
+      hoy.SetBinContent(i, yout)
+      hoy.SetBinError(i, 0.05)
+   res = hoy.Fit("pol1","s")
+   x = numpy.array([yref[scan], yref[scan]], dtype=float)
+   y = numpy.array([-5, 5], dtype=float)
+   global g
+   g = TGraph(2, x, y)
+   g.SetLineColor(kBlue)
+   g.Draw("l")
+   print "zero crossing is", -res.Parameter(0) / res.Parameter(1)
+   return hoy
+
+def check2_oy(scan, row1=0, row2=0):
+   if scan == 0 and lastscan > 0:
+      scan = lastscan
+   hp = map2d('oyp', scan)
+   hpy = proy(hp, row1, row2, scan)
+   hm = map2d('oym', scan)
+   hmy = proy(hm, row1, row2, scan)
+   hoy = hpy.Clone("hoy")
+   hoy.SetTitle("inner y calibration check, scan {0}".format(scan))
+   for i in range(1, ysteps[0] + 1):
+      Ip = hpy.GetBinContent(i)
+      if Ip == 0:
+         continue
+      Ip -= pedestals[scan]['oyp']
+      Im = hmy.GetBinContent(i)
+      Im -= pedestals[scan]['oym']
+      A = Ip * calparamE[scan]['oym'] - Im * calparamE[scan]['oyp']
+      B = Ip * calparamF[scan]['oym'] - Im * calparamF[scan]['oyp']
+      C = Ip * calparamG[scan]['oym'] - Im * calparamG[scan]['oyp']
+      D = B**2 - 4 * A * C
+      yout = (-B - D**0.5) / (2 * A) 
+      hoy.SetBinContent(i, yout)
       hoy.SetBinError(i, 0.05)
    res = hoy.Fit("pol1","s")
    x = numpy.array([yref[scan], yref[scan]], dtype=float)
@@ -435,6 +626,7 @@ def docal():
       calibrate_iy(scan)
       calibrate_ox(scan)
       calibrate_oy(scan)
+   """
    print "R values: "
    for scan in gains:
       print " ", scan, ":",
@@ -463,3 +655,46 @@ def docal():
       print "{0:6}".format(calparamS[scan]['iy']),
       print "{0:6}".format(calparamS[scan]['ox']),
       print "{0:6}".format(calparamS[scan]['oy'])
+   """
+   print "G values: "
+   for scan in gains:
+      print " ", scan, ":",
+      print "{0:6.4f}".format(calparamG[scan]['ixp']),
+      print "{0:6.4f}".format(calparamG[scan]['ixm']),
+      print "   ",
+      print "{0:6.4f}".format(calparamG[scan]['iyp']),
+      print "{0:6.4f}".format(calparamG[scan]['iym']),
+      print "   ",
+      print "{0:6.4f}".format(calparamG[scan]['oxp']),
+      print "{0:6.4f}".format(calparamG[scan]['oxm']),
+      print "   ",
+      print "{0:6.4f}".format(calparamG[scan]['oyp']),
+      print "{0:6.4f}".format(calparamG[scan]['oym'])
+   print "F values: "
+   for scan in gains:
+      print " ", scan, ":",
+      print "{0:6.4f}".format(calparamF[scan]['ixp']),
+      print "{0:6.4f}".format(calparamF[scan]['ixm']),
+      print "   ",
+      print "{0:6.4f}".format(calparamF[scan]['iyp']),
+      print "{0:6.4f}".format(calparamF[scan]['iym']),
+      print "   ",
+      print "{0:6.4f}".format(calparamF[scan]['oxp']),
+      print "{0:6.4f}".format(calparamF[scan]['oxm']),
+      print "   ",
+      print "{0:6.4f}".format(calparamF[scan]['oyp']),
+      print "{0:6.4f}".format(calparamF[scan]['oym'])
+   print "E values: "
+   for scan in gains:
+      print " ", scan, ":",
+      print "{0:6.5f}".format(calparamE[scan]['ixp']),
+      print "{0:6.5f}".format(calparamE[scan]['ixm']),
+      print "  ",
+      print "{0:6.5f}".format(calparamE[scan]['iyp']),
+      print "{0:6.5f}".format(calparamE[scan]['iym']),
+      print "   ",
+      print "{0:6.5f}".format(calparamE[scan]['oxp']),
+      print "{0:6.4f}".format(calparamE[scan]['oxm']),
+      print "  ",
+      print "{0:6.5f}".format(calparamE[scan]['oyp']),
+      print "{0:6.5f}".format(calparamE[scan]['oym'])
