@@ -6,6 +6,9 @@
 # author: richard.t.jones at uconn.edu
 # version: april 3, 2018
 
+from ROOT import *
+import numpy
+
 import mysql.connector
 import datetime
 import time
@@ -85,7 +88,8 @@ epicsvars = {"ixp": "IOCHDCOL:VMICADC1_1",
              "xmo": "hd:collimator:x:motor.RBV",
              "ymo": "hd:collimator:y:motor.RBV",
              "xbp": "bpu_mean_x",
-             "ybp": "bpu_mean_y"}
+             "ybp": "bpu_mean_y",
+             "bpu": "hd:bpu_at_a"}
 
 myahost = [{"name":"opsmya0.acc.jlab.org", 
             "proxy":"gluey.phys.uconn.edu", "port": 63306},
@@ -197,88 +201,162 @@ def get_epics_record(var, stime):
    print "lookup of", var, "failed"
    return []
 
-epoch = time.time()
-lastime = ""
-while True:
-   pattern = '%d.%m.%Y %H:%M:%S'
-   newtime = raw_input("Enter a date and time [dd.mm.yyyy hh:mm:ss]: ")
-   if newtime:
-      lastime = newtime
-   else:
-      newtime = lastime
-   if len(newtime) == 0:
-      pass
-   elif newtime[0] == 'f': # fast-forward to the next FSD 
-      while True:
-         cur = get_epics_record("cur", epoch)
-         if cur[1] > 0:
-            epoch += 1
-         else:
-            break
-   elif newtime[0] == 'r': # fast-forward to the next beam-on period
-      while True:
-         cur = get_epics_record("cur", epoch)
-         if cur[1] < 10:
-            epoch += 1
-         else:
-            break
-   elif newtime[0] == '+':
-      epoch += float(newtime)
-   elif len(newtime) > 0 and newtime[0] == '-':
-      epoch += float(newtime)
-   else:
-      epoch = int(time.mktime(time.strptime(newtime, pattern)))
-   record = {}
-   for var in epicsvars:
-      record[var] = get_epics_record(var, epoch)
-   g = gains[record['gain'][1]]
-   for var in ("ixp", "ixm", "iyp", "iym", "oxp", "oxm", "oyp", "oym"):
-      if var + "_ped" in record and len(record[var + '_ped']) > 0:
-         ped = record[var + '_ped'][1] * gpedestal[g][var]
+def follow():
+   epoch = time.time()
+   lastime = ""
+   while True:
+      pattern = '%d.%m.%Y %H:%M:%S'
+      newtime = raw_input("Enter a date and time [dd.mm.yyyy hh:mm:ss]: ")
+      if newtime:
+         lastime = newtime
       else:
-         ped = pedestals[g][var]
-      if len(record[var]) < 2:
-         print "bad bad leroy brown...", var
-         continue
-      print var, ":", record[var][1], "-", ped,
-      print "=", record[var][1] - ped
-   current = record['cur'][1]
-   print "current:", current
-   repoch = record['ixp'][0] / 65536**2
-   timestring = datetime.datetime.fromtimestamp(repoch).strftime('%d.%m.%Y %H:%M:%S')
-   print timestring,
-   print "gain: {0:.0e}".format(g),
-   for var in ("ix", "iy", "ox", "oy"):
-      if var + 'p_ped' in record and len(record[var + 'p_ped']) > 0:
-         Ip_ped = record[var + 'p_ped'][1] * gpedestal[g][var + 'p']
-         Im_ped = record[var + 'm_ped'][1] * gpedestal[g][var + 'm']
+         newtime = lastime
+      if len(newtime) == 0:
+         pass
+      elif newtime[0] == 'f': # fast-forward to the next FSD 
+         while True:
+            cur = get_epics_record("cur", epoch)
+            if cur[1] > 0:
+               epoch += 1
+            else:
+               break
+      elif newtime[0] == 'r': # fast-forward to the next beam-on period
+         while True:
+            cur = get_epics_record("cur", epoch)
+            if cur[1] < 10:
+               epoch += 1
+            else:
+               break
+      elif newtime[0] == '+':
+         epoch += float(newtime)
+      elif len(newtime) > 0 and newtime[0] == '-':
+         epoch += float(newtime)
       else:
-         Ip_ped = pedestals[g][var + 'p']
-         Im_ped = pedestals[g][var + 'm']
-      Ip = record[var + 'p'][1] - Ip_ped
-      Im = record[var + 'm'][1] - Im_ped
-      """ Old calibration, disabled
-      P = calparamP[g][var]
-      Q = calparamQ[g][var]
-      R = calparamR[g][var]
-      S = calparamS[g][var]
-      x = S * (Ip - R * Im + P) / (Ip + R * Im + Q + 1e-99)
-      """
-      A = Ip * calparamE[g][var + 'm'] - Im * calparamE[g][var + 'p']
-      B = Ip * calparamF[g][var + 'm'] - Im * calparamF[g][var + 'p']
-      C = Ip * calparamG[g][var + 'm'] - Im * calparamG[g][var + 'p']
-      D = B**2 - 4 * A * C
-      if D > 0 and Ip + Im > 100:
-         x = (-B - D**0.5) / (2 * A) 
-      else:
-         x = "***"
-      print var, ":", x, "   ",
-   print "xmo:", record['xmo'][1], "ymo:", record['ymo'][1]
-
-   # keep track of my own pedestals, the EPICS values are not consistent
-   if current == 0:
-      f = 0.5
+         try:
+            epoch = int(time.mktime(time.strptime(newtime, pattern)))
+         except:
+            return
+      record = {}
+      for var in epicsvars:
+         record[var] = get_epics_record(var, epoch)
+      g = gains[record['gain'][1]]
       for var in ("ixp", "ixm", "iyp", "iym", "oxp", "oxm", "oyp", "oym"):
-         pedestals[g][var] = pedestals[g][var] * (1-f) + record[var][1] * f
+         if var + "_ped" in record and len(record[var + '_ped']) > 0:
+            ped = record[var + '_ped'][1] * gpedestal[g][var]
+         else:
+            ped = pedestals[g][var]
+         if len(record[var]) < 2:
+            print "bad bad leroy brown...", var
+            continue
+         print var, ":", record[var][1], "-", ped,
+         print "=", record[var][1] - ped
+      current = record['cur'][1]
+      print "current:", current
+      repoch = record['ixp'][0] / 65536**2
+      timestring = datetime.datetime.fromtimestamp(repoch).strftime('%d.%m.%Y %H:%M:%S')
+      print timestring,
+      print "gain: {0:.0e}".format(g),
+      for var in ("ix", "iy", "ox", "oy"):
+         if var + 'p_ped' in record and len(record[var + 'p_ped']) > 0:
+            Ip_ped = record[var + 'p_ped'][1] * gpedestal[g][var + 'p']
+            Im_ped = record[var + 'm_ped'][1] * gpedestal[g][var + 'm']
+         else:
+            Ip_ped = pedestals[g][var + 'p']
+            Im_ped = pedestals[g][var + 'm']
+         Ip = record[var + 'p'][1] - Ip_ped
+         Im = record[var + 'm'][1] - Im_ped
+         """ Old calibration, disabled
+         P = calparamP[g][var]
+         Q = calparamQ[g][var]
+         R = calparamR[g][var]
+         S = calparamS[g][var]
+         x = S * (Ip - R * Im + P) / (Ip + R * Im + Q + 1e-99)
+         """
+         A = Ip * calparamE[g][var + 'm'] - Im * calparamE[g][var + 'p']
+         B = Ip * calparamF[g][var + 'm'] - Im * calparamF[g][var + 'p']
+         C = Ip * calparamG[g][var + 'm'] - Im * calparamG[g][var + 'p']
+         D = B**2 - 4 * A * C
+         if D > 0 and Ip + Im > 100:
+            x = (-B - D**0.5) / (2 * A) 
+         else:
+            x = "***"
+         print var, ":", x, "   ",
+      print "xmo:", record['xmo'][1], "ymo:", record['ymo'][1]
+   
+      # keep track of my own pedestals, the EPICS values are not consistent
+      if current == 0:
+         f = 0.5
+         for var in ("ixp", "ixm", "iyp", "iym", "oxp", "oxm", "oyp", "oym"):
+            pedestals[g][var] = pedestals[g][var] * (1-f) + record[var][1] * f
 
-close_mysql_connections()
+   #close_mysql_connections()
+
+def plot(vars=["ixp", "iyp", "oxp", "oyp", "cur", "bpu"], start=0, duration=0):
+   pattern = '%d.%m.%Y %H:%M:%S'
+   if start == 0:
+      start = raw_input("Enter the start date and time [dd.mm.yyyy hh:mm:ss]: ")
+   epoch = int(time.mktime(time.strptime(start, pattern)))
+   if duration == 0:
+      duration = raw_input("Enter the length of the period to plot [seconds]: ")
+      duration = int(duration)
+   global graphs
+   graphs = {}
+   vlimits = [0] * 2
+   for var in vars:
+      mya0 = mysql_connection(0)
+      cursor = mya0.cursor()
+      query = "SELECT chan_id, host FROM channels WHERE name = %s"
+      cursor.execute(query, (epicsvars[var],))
+      chan_id = -1
+      for (c, h) in cursor:
+         chan_id = c
+         host = h
+      if chan_id == -1:
+         print "update_epics_record error -",
+         print "epics variable", epicsvars[var], 
+         print "is not in the archive, cannot continue!"
+         print cursor._executed
+         sys.exit(1)
+      cursor.close()
+      nmya = -1
+      for h in myahost:
+         if h["name"] == host + ".acc.jlab.org":
+            nmya = int(host[6])
+      if nmya < 0:
+         print "update_epics_record error -",
+         print "mya host", host, 
+         print "is not in my archive server list, cannot continue!"
+         sys.exit(1)
+
+      epicstime = [epoch * 65536**2, (epoch + duration) * 65536**2]
+      mya1 = mysql_connection(nmya)
+      cursor = mya1.cursor()
+      query = ("SELECT time, val1 FROM table_{0}".format(chan_id) +
+               " WHERE time >= {0:f}".format(epicstime[0]) +
+               " AND time <= {0:f}".format(epicstime[1]) +
+               " ORDER BY time ASC LIMIT {0}".format(1000000))
+      cursor.execute(query)
+      rows = cursor.fetchall()
+      ti = []
+      va = []
+      for (t, v) in rows:
+         vlimits[0] = v if v < vlimits[0] else vlimits[0]
+         vlimits[1] = v if v > vlimits[1] else vlimits[1]
+         ti.append(t / 65536. / 65536. - epoch)
+         va.append(v)
+      if len(ti) > 0:
+         graphs[var] = TGraph(len(ti), numpy.array(ti, dtype=float), 
+                                       numpy.array(va, dtype=float))
+   global hframe
+   hframe = TH1D("hframe", "time chart", 1, 0, duration)
+   hframe.GetXaxis().SetTitle("time (s) starting {0}".format(start))
+   hframe.SetMinimum(vlimits[0])
+   hframe.SetMaximum(vlimits[1])
+   hframe.SetStats(0)
+   hframe.Draw()
+   color = 1
+   for var in graphs:
+      print "graphing", var
+      graphs[var].SetLineColor(color)
+      graphs[var].Draw("l")
+      color += 1
