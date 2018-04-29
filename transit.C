@@ -154,13 +154,22 @@ void transit::show_transit(Long64_t entry)
       gr[i] = new TGraph(ixp_record_len, t, w[i]);
    gr[0]->Draw("ap");
    gr[0]->GetHistogram()->SetMaximum(500);
-   gr[0]->GetHistogram()->SetMinimum(-200);
+   gr[0]->GetHistogram()->SetMinimum(-500);
+   gr[0]->GetHistogram()->SetTitle("transit event");
+   gr[0]->GetHistogram()->GetXaxis()->SetTitle("t (s)");
+   gr[0]->GetHistogram()->GetYaxis()->SetTitle("wedge current (raw)");
+   gr[0]->GetHistogram()->GetYaxis()->SetTitleOffset(1.5);
    gr[0]->GetHistogram()->Draw();
-   for (int i=1; i < 8; ++i)
+   for (int i=0; i < 8; ++i)
       gr[i]->Draw("p");
    TCanvas *c1 = (TCanvas*)gROOT->FindObject("c1");
    c1->Update();
-   printf("Enter c to continue: ");
+   printf("Enter p <image_name> to save a png, or c to continue: ");
    std::string resp;
    std::cin >> resp;
+   if (resp[0] == 'p') {
+      std::cin >> resp;
+      resp += ".png";
+      c1->Print(resp.c_str());
+   }
 }
