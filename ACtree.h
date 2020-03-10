@@ -8,6 +8,8 @@
 #ifndef ACtree_h
 #define ACtree_h
 
+#include <string>
+
 #include <TROOT.h>
 #include <TChain.h>
 #include <TFile.h>
@@ -35,6 +37,7 @@ public :
    } rec[8];
 
    // Fourier transform histograms of waveforms
+   TH1I *FIhist[8];
    TH1D *FThist[8];
    TH1D *FTwork[8][2];
 
@@ -77,6 +80,7 @@ public :
 
    ClassDef(ACtree,0);
 
+   static std::string rational(double ratio, int *numer=0, int *denom=0, double prec=1e-4);
 };
 
 #endif
