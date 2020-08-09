@@ -465,14 +465,18 @@ tree = 0
 entry = numpy.array([0], dtype=float)
 for scan in range(0, 9999999):
    try:
-      asc = open("{0}_{1}.asc".format(basename, scan + 1))
+      asc = open("{0}_{1:02d}.asc".format(basename, scan + 1))
    except:
       nscans = scan
       break
    fill_theTree(asc)
-tree.Write()
+if tree:
+   tree.Write()
+else:
+   print "expected output from mda2ascii not found, quitting"
+   sys.exit(1)
 
 # clean up and exit
 for scan in range(0, nscans):
-   os.remove("{0}_{1}.asc".format(basename, scan + 1))
+   os.remove("{0}_{1:02d}.asc".format(basename, scan + 1))
 sys.exit(0)
