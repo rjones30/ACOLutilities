@@ -155,7 +155,7 @@ def update_epics_record(var, nmax=1000, stime=0):
       print "is not in my archive server list, cannot continue!"
       sys.exit(1)
 
-   epicstime = stime * 65536**2
+   epicstime = stime * (1 << 28)
    mya1 = mysql_connection(nmya)
    cursor = mya1.cursor()
    if stime > 0:
@@ -176,16 +176,16 @@ def update_epics_record(var, nmax=1000, stime=0):
       rows = cursor.fetchall()
       epicsrecord[var] = rows[::-1]
       print var, "updated from", 
-      print datetime.datetime.fromtimestamp(epicsrecord[var][-1][0]/65536**2).strftime('%d.%m.%Y %H:%M:%S'),
+      print datetime.datetime.fromtimestamp(epicsrecord[var][-1][0]/(1 << 28)).strftime('%d.%m.%Y %H:%M:%S'),
       print "to",
-      print datetime.datetime.fromtimestamp(epicsrecord[var][0][0]/65536**2).strftime('%d.%m.%Y %H:%M:%S'),
+      print datetime.datetime.fromtimestamp(epicsrecord[var][0][0]/(1 << 28)).strftime('%d.%m.%Y %H:%M:%S'),
       print ",", len(epicsrecord[var]), "elements"
    else:
       epicsrecord[var] = []
    cursor.close()
 
 def get_epics_record(var, stime):
-   epicstime = stime * 65536**2
+   epicstime = stime * (1 << 28)
    try:
       if epicsrecord[var][0][0] < epicstime:
          print "fast-forward", var
@@ -252,7 +252,7 @@ def follow():
          print "=", record[var][1] - ped
       current = record['cur'][1]
       print "current:", current
-      repoch = record['ixp'][0] / 65536**2
+      repoch = record['ixp'][0] / (1 << 28)
       timestring = datetime.datetime.fromtimestamp(repoch).strftime('%d.%m.%Y %H:%M:%S')
       print timestring,
       print "gain: {0:.0e}".format(g),
@@ -328,21 +328,29 @@ def plot(vars=["ixp", "iyp", "oxp", "oyp", "cur", "bpu"], start=0, duration=0):
          print "is not in my archive server list, cannot continue!"
          sys.exit(1)
 
-      epicstime = [epoch * 65536**2, (epoch + duration) * 65536**2]
+      epicstime = [epoch * (1 << 28), (epoch + duration) * (1 << 28)]
       mya1 = mysql_connection(nmya)
       cursor = mya1.cursor()
       query = ("SELECT time, val1 FROM table_{0}".format(chan_id) +
                " WHERE time >= {0:f}".format(epicstime[0]) +
                " AND time <= {0:f}".format(epicstime[1]) +
                " ORDER BY time ASC LIMIT {0}".format(1000000))
+      print "nmya is", nmya
+      print "epoch of start:", epoch
+      print "epoch of stop:", epoch + duration
+      print "query is SELECT time, val1 FROM table_{0}".format(chan_id) +\
+               " WHERE time >= {0:f}".format(epicstime[0]) +\
+               " AND time <= {0:f}".format(epicstime[1]) +\
+               " ORDER BY time ASC LIMIT {0}".format(1000000)
       cursor.execute(query)
       rows = cursor.fetchall()
+      print var, "has", len(rows), "rows"
       ti = []
       va = []
       for (t, v) in rows:
          vlimits[0] = v if v < vlimits[0] else vlimits[0]
          vlimits[1] = v if v > vlimits[1] else vlimits[1]
-         ti.append(t / 65536. / 65536. - epoch)
+         ti.append(t / (1 << 28) - epoch)
          va.append(v)
       if len(ti) > 0:
          graphs[var] = TGraph(len(ti), numpy.array(ti, dtype=float), 
