@@ -10,19 +10,75 @@ from ROOT import *
 import numpy
 import math
 
-# collimator scans taken 2/16/2018
-gains = {82: 1e9, 86: 1e11, 87: 1e10}
-rootfile = {82: "data/collimXY_scan_0082.root",
-            86: "data/collimXY_scan_0086.root",
-            87: "data/collimXY_scan_0087.root"}
-xref = {82: -114.04, 86: -114.91, 87: -114.90}
-yref = {82:    4.79, 86:    5.32, 87:    5.30}
-xsteps = [9, -116.75, -112.25]
-ysteps = [9, 2.75, 7.25]
-dead = {82: [[-116.5, 3.5],[-116.5,6.5],[-116,4]],
-        86: [[-116.5, 3], [-116.5,5], [-116.5,7]],
-        87: [[-116.5, 3]]}
-beamcur = {82: 66.7, 86: 100.6, 87: 101.3}
+# collimator scans taken 2/16/2018, 8/8/2020
+gains = { 82: 1e9,
+          86: 1e11,
+          87: 1e10, 
+         116: 1e8,
+         117: 1e8,
+        }
+
+rootfile = { 82: "data/collimXY_scan_0082.root",
+             86: "data/collimXY_scan_0086.root",
+             87: "data/collimXY_scan_0087.root",
+            116: "data/collimXY_scan_0116.root",
+            117: "data/collimXY_scan_0117.root",
+           }
+
+xref = { 82: -114.04,
+         86: -114.91,
+         87: -114.90,
+        116: -115.26,
+        117: -115.26,
+       }
+
+yref = { 82: 4.79,
+         86: 5.32,
+         87: 5.30,
+        116: 4.67,
+        117: 4.67,
+       }
+
+xsteps = { 82: [ 9, -116.75, -112.25],
+           86: [ 9, -116.75, -112.25],
+           87: [ 9, -116.75, -112.25],
+          116: [13, -118.25, -111.75],
+          117: [13, -118.25, -111.75],
+         }
+
+ysteps = { 82: [ 9, 2.75, 7.25],
+           86: [ 9, 2.75, 7.25],
+           87: [ 9, 2.75, 7.25],
+          116: [13, 1.45, 7.95],
+          117: [13, 1.45, 7.95],
+         }
+
+dead = { 82: [[-116.5, 3.5],[-116.5,6.5],[-116,4]],
+         86: [[-116.5, 3.0], [-116.5,5], [-116.5,7]],
+         87: [[-116.5, 3.0]],
+        116: [[-113.0, 6.2], [-112.5, 6.2], [-115.0, 3.2], [-118.0, 6.7]],
+        117: [[-118.0, 5.2], [-118.0, 5.7], [-118.0, 7.2], 
+              [-118.0, 3.7], [-116.0, 5.2], [-116.0, 5.7]],
+       }
+
+beamcur = { 82: 66.7,
+            86: 100.6,
+            87: 101.3,
+           116: 66.1,
+           117: 66.7,
+          }
+
+pedestals = { 82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
+                   "oxp":  960, "oxm":  -34, "oyp": -720, "oym":  -950},
+              87: {"ixp": 1380, "ixm":  503, "iyp":  168, "iym":  -665,
+                   "oxp":  -20, "oxm":  -35, "oyp": -520, "oym":  -705},
+              86: {"ixp": -230, "ixm": -210, "iyp": -125, "iym": -1140,
+                   "oxp":  -24, "oxm":  -35, "oyp":  350, "oym":  1007},
+             116: {"ixp": -205, "ixm": -118, "iyp":   10, "iym":    19,
+                   "oxp":  -47, "oxm":  -49, "oyp":  -76, "oym":    -1},
+             117: {"ixp": -205, "ixm": -118, "iyp":   10, "iym":    19,
+                   "oxp":  -47, "oxm":  -49, "oyp":  -76, "oym":    -1},
+            }
 
 # original P,Q,R,S calibration performed on 2/21/2018
 """
@@ -49,13 +105,6 @@ calparamS = {82: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
 
 # revised P,Q,R,S calibration performed on 3/31/2018
 
-pedestals = {82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
-                  "oxp":  960, "oxm":  -34, "oyp": -720, "oym":  -950},
-             87: {"ixp": 1380, "ixm":  503, "iyp":  168, "iym":  -665,
-                  "oxp":  -20, "oxm":  -35, "oyp": -520, "oym":  -705},
-             86: {"ixp": -230, "ixm": -210, "iyp": -125, "iym": -1140,
-                  "oxp":  -24, "oxm":  -35, "oyp":  350, "oym":  1007}}
-
 calparamP = {82: {"ix":  595, "iy": -418, "ox": 0, "oy": 314},
              87: {"ix": 2138, "iy":  258, "ox": 0, "oy": 574},
              86: {"ix": 1314, "iy":  -82, "ox": 0, "oy": -88}}
@@ -70,13 +119,6 @@ calparamS = {82: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2},
              86: {"ix": 6.3, "iy": 6.3, "ox": 11.2, "oy": 11.2}}
 
 # version 2.0 calibration: G,F,E parameterization (4/5/2018)
-
-pedestals = {82: {"ixp":  -45, "ixm":  -44, "iyp":   -9, "iym":    -8,
-                  "oxp":  960, "oxm":  -34, "oyp": -720, "oym":  -950},
-             87: {"ixp": 1380, "ixm":  503, "iyp":  168, "iym":  -665,
-                  "oxp":  -20, "oxm":  -35, "oyp": -520, "oym":  -705},
-             86: {"ixp": -230, "ixm": -210, "iyp": -125, "iym": -1140,
-                  "oxp":  -24, "oxm":  -35, "oyp":  350, "oym":  1007}}
 
 calparamG = {82: {"ixp": 1.0000, "ixm": 0.8552, "iyp": 1.0000, "iym": 1.0132,
                   "oxp": 1.0000, "oxm": 1.0000, "oyp": 1.0000, "oym": 0.8029},
@@ -131,7 +173,32 @@ epicsvars = {"ixp": "IOCHDCOL_VMICADC1_1",
 lastscan = 0
 
 def map2d(var, scan):
+   """
+   special value scan=116.5 returns the average value for scans 116 and 117
+   with the dead channels suppressed to fill in the holes in each
+   """
    global c1
+   if scan == 116.5:
+      h = map2d(var, 116)
+      h116 = h.Clone("h116")
+      h116.SetDirectory(0)
+      h = map2d(var, 117)
+      h117 = h.Clone("h117")
+      h117.SetDirectory(0)
+      h.SetTitle("{0} scan {1}".format(var, scan))
+      for i in range(0, h.GetNbinsX()):
+         for j in range(0, h.GetNbinsY()):
+            z116 = h116.GetBinContent(i,j)
+            z117 = h117.GetBinContent(i,j)
+            if z116 > 0 and z117 > 0:
+               h.SetBinContent(i,j, (z116 + z117)/2)
+            elif z116 > 0:
+               h.SetBinContent(i,j, z116)
+            else:
+               h.SetBinContent(i,j, z117)
+      h.Draw("colz")
+      c1.Update()
+      return h
    global tree
    global treefile
    global lastscan
@@ -143,9 +210,11 @@ def map2d(var, scan):
       h.Delete()
    c1 = gROOT.FindObject("c1")
    if not c1:
-      c1 = TCanvas("c1", "c1", 50, 50, 500, 500)
+      c1 = TCanvas("c1", "c1", 50, 50, 540, 500)
+      gPad.SetRightMargin(0.15)
    h = TH2D("h2d", "{0} scan {1}".format(var, scan),
-            xsteps[0], xsteps[1], xsteps[2], ysteps[0], ysteps[1], ysteps[2])
+            xsteps[scan][0], xsteps[scan][1], xsteps[scan][2],
+            ysteps[scan][0], ysteps[scan][1], ysteps[scan][2])
    xystring = "{1}:{0}".format(epicsvars['xmo'], epicsvars['ymo'])
    varstring = "({0})*({1})/({2})".format(epicsvars[var], 
                                           beamcur[scan],
@@ -154,6 +223,7 @@ def map2d(var, scan):
    h.GetXaxis().SetTitle("x motor (mm)")
    h.GetYaxis().SetTitle("y motor (mm)")
    h.GetYaxis().SetTitleOffset(1.4)
+   h.SetContour(100)
    h.SetDirectory(0)
    h.SetStats(0)
    suppress_dead(h, scan)
@@ -369,7 +439,7 @@ def check_ix(scan, row1=0, row2=0):
    S = calparamS[scan]['ix']
    hix = hpx.Clone("hix")
    hix.SetTitle("inner x calibration check, scan {0}".format(scan))
-   for i in range(1, xsteps[0] + 1):
+   for i in range(1, xsteps[scan][0] + 1):
       Ip = hpx.GetBinContent(i)
       if Ip == 0:
          continue
@@ -398,7 +468,7 @@ def check2_ix(scan, row1=0, row2=0):
    hmx = prox(hm, row1, row2, scan)
    hix = hpx.Clone("hix")
    hix.SetTitle("inner x calibration check, scan {0}".format(scan))
-   for i in range(1, xsteps[0] + 1):
+   for i in range(1, xsteps[scan][0] + 1):
       Ip = hpx.GetBinContent(i)
       if Ip == 0:
          continue
@@ -435,7 +505,7 @@ def check_iy(scan, row1=0, row2=0):
    S = calparamS[scan]['iy']
    hiy = hpy.Clone("hiy")
    hiy.SetTitle("inner y calibration check, scan {0}".format(scan))
-   for i in range(1, ysteps[0] + 1):
+   for i in range(1, ysteps[scan][0] + 1):
       Ip = hpy.GetBinContent(i)
       if Ip == 0:
          continue
@@ -464,7 +534,7 @@ def check2_iy(scan, row1=0, row2=0):
    hmy = proy(hm, row1, row2, scan)
    hiy = hpy.Clone("hiy")
    hiy.SetTitle("inner y calibration check, scan {0}".format(scan))
-   for i in range(1, ysteps[0] + 1):
+   for i in range(1, ysteps[scan][0] + 1):
       Ip = hpy.GetBinContent(i)
       if Ip == 0:
          continue
@@ -501,7 +571,7 @@ def check_ox(scan, row1=0, row2=0):
    S = calparamS[scan]['ox']
    hox = hpx.Clone("hox")
    hox.SetTitle("inner x calibration check, scan {0}".format(scan))
-   for i in range(1, xsteps[0] + 1):
+   for i in range(1, xsteps[scan][0] + 1):
       Ip = hpx.GetBinContent(i)
       if Ip == 0:
          continue
@@ -530,7 +600,7 @@ def check2_ox(scan, row1=0, row2=0):
    hmx = prox(hm, row1, row2, scan)
    hox = hpx.Clone("hox")
    hox.SetTitle("inner x calibration check, scan {0}".format(scan))
-   for i in range(1, xsteps[0] + 1):
+   for i in range(1, xsteps[scan][0] + 1):
       Ip = hpx.GetBinContent(i)
       if Ip == 0:
          continue
@@ -567,7 +637,7 @@ def check_oy(scan, row1=0, row2=0):
    S = calparamS[scan]['oy']
    hoy = hpy.Clone("hoy")
    hoy.SetTitle("inner y calibration check, scan {0}".format(scan))
-   for i in range(1, ysteps[0] + 1):
+   for i in range(1, ysteps[scan][0] + 1):
       Ip = hpy.GetBinContent(i)
       if Ip == 0:
          continue
@@ -596,7 +666,7 @@ def check2_oy(scan, row1=0, row2=0):
    hmy = proy(hm, row1, row2, scan)
    hoy = hpy.Clone("hoy")
    hoy.SetTitle("inner y calibration check, scan {0}".format(scan))
-   for i in range(1, ysteps[0] + 1):
+   for i in range(1, ysteps[scan][0] + 1):
       Ip = hpy.GetBinContent(i)
       if Ip == 0:
          continue
@@ -698,3 +768,40 @@ def docal():
       print "  ",
       print "{0:6.5f}".format(calparamE[scan]['oyp']),
       print "{0:6.5f}".format(calparamE[scan]['oym'])
+
+def map_asym(var1, var2, scan):
+   h = map2d(var1, scan)
+   hplus = h.Clone("hplus")
+   hplus.SetDirectory(0)
+   h = map2d(var2, scan)
+   hminus = h.Clone("hminus")
+   hminus.SetDirectory(0)
+   hsum = hplus.Clone("hsum")
+   hsum.Add(hminus)
+   hasym = hplus.Clone("hasym")
+   hasym.Add(hminus, -1)
+   hasym.Divide(hsum)
+   hasym.SetTitle("{0}-{1} asymmetry from scan {2}".format(var1, var2, scan))
+   hasym.SetContour(100)
+   hasym.Draw("colz")
+   c1.Update()
+   return hasym
+
+def poly3(var, par):
+   return sum([par[i] * (var[0] - par[0])**i for i in range(1,4)])
+
+def fit_pol3(h1d):
+   nx = h1d.GetNbinsX()
+   x0 = h1d.GetXaxis().GetBinLowEdge(1)
+   x1 = h1d.GetXaxis().GetBinUpEdge(nx)
+   foly3 = TF1("foly3", poly3, x0, x1, 4)
+   foly3.SetParameter(0, (x0 + x1)/2)
+   foly3.SetParameter(1, 1)
+   foly3.SetParameter(2, 1e-3)
+   foly3.SetParameter(3, 1e-3)
+   fres = h1d.Fit(foly3, "s")
+   redchi2 = h1d.Chisquare(foly3) / (nx - 4)
+   for i in range(0, nx):
+      sigma = h1d.GetBinError(i+1)
+      h1d.SetBinError(i+1, sigma * redchi2**0.5)
+   return h1d.Fit(foly3, "s")
