@@ -769,6 +769,13 @@ def docal():
       print "{0:6.5f}".format(calparamE[scan]['oyp']),
       print "{0:6.5f}".format(calparamE[scan]['oym'])
 
+##################################################################
+# Below are the functions that I added to do the calibration
+# of the active collimator response with bias voltage applied,
+# without the more complicated scheme that was developed for
+# dealing with the squirrelly behavior of the unbiased device.
+##################################################################
+
 def map_asym(var1, var2, scan):
    h = map2d(var1, scan)
    hplus = h.Clone("hplus")
@@ -805,3 +812,31 @@ def fit_pol3(h1d):
       sigma = h1d.GetBinError(i+1)
       h1d.SetBinError(i+1, sigma * redchi2**0.5)
    return h1d.Fit(foly3, "s")
+
+def do_cal_fits(scan=116.5):
+   hix = map_asym('ixp', 'ixm', scan)
+   hix.SetDirectory(0)
+   hiy = map_asym('iyp', 'iym', scan)
+   hiy.SetDirectory(0)
+   hox = map_asym('oxp', 'oxm', scan)
+   hox.SetDirectory(0)
+   hoy = map_asym('oyp', 'oym', scan)
+   hoy.SetDirectory(0)
+   c1 = gROOT.FindObject("c1")
+   for h in (hix, hiy, hox, hoy):
+      h.Smooth()
+      h.Draw("colz")
+      c1.Update()
+      c1.Print("ac_" + h.GetName() + ".png")
+   hixp = hix.ProjectionX("hixp", 7, 7)
+   hiyp = hiy.ProjectionY("hiyp", 7, 7)
+   hoxp = hox.ProjectionX("hoxp", 7, 7)
+   hoyp = hoy.ProjectionY("hoyp", 7, 7)
+   gStyle.SetOptFit()
+   gStyle.SetOptStat(0)
+   gStyle.SetStatX(0.5)
+   gStyle.SetStatY(0.85)
+   for h in (hixp, hiyp, hoxp, hoyp):
+      fit_pol3(h)
+      c1.Update()
+      c1.Print("ac_" + h.GetName() + ".png")
